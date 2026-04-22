@@ -803,8 +803,19 @@ svg#field, .vignette {
   cursor: text;
 }
 
-/* Chaos mode pins the viewport so translated chars don't create scroll. */
-body.chaos-active { overflow: hidden; }
+/* Chaos mode pins the viewport so translated chars don't create scroll,
+   and also disables the browser's native touch gestures (pan, pinch,
+   zoom). Without `touch-action: none`, a touch-drag on mobile gets
+   interpreted as a scroll attempt the moment the finger moves, and the
+   browser fires `pointercancel` to claim the pointer — our release
+   handler listens for both `pointerup` and `pointercancel`, so the
+   cancellation explodes the scene prematurely before the user has lifted
+   their finger. Killing touch-action during `chaos-active` keeps the
+   pointer stream ours end-to-end. */
+body.chaos-active {
+  overflow: hidden;
+  touch-action: none;
+}
 
 /* Disable all interaction on page content during any chaos state —
    text selection, link clicks, hover states. Clicks still reach the
@@ -1346,5 +1357,28 @@ body {
   .chaos-toast,
   .music-cta {
     top: 74px;
+  }
+
+  /* Meta row: promote the location pill to its own line so the five
+     skill pills get the full content width to themselves. Without this
+     the row wraps awkwardly and typically strands the rightmost skill
+     ("Security") alone on a third line. `flex-basis: 100%` is enough
+     to push everything after it to a new flex row; the extra vertical
+     gap replaces the default row-gap so the two groups breathe a bit.
+     The hairline divider that would normally draw before the first
+     skill pill on the new row (via `.meta-pill + .meta-pill::before`)
+     is hidden — it would hang in empty space at the row's left edge. */
+  .meta-row { gap: 10px 18px; }
+  .meta-location { flex-basis: 100%; }
+  .meta-location + .meta-pill::before { display: none; }
+
+  /* Contact row: stack the buttons vertically. At phone widths the
+     four contacts wrap into an awkward 3+1 or 2+2 grid; a single
+     column aligned-left reads as a colophon list and keeps each
+     affordance obvious. */
+  .contact-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
 }
