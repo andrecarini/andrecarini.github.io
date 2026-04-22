@@ -210,7 +210,15 @@ export function onChaosPress(cx, cy) {
   // internal chars move with it.
   let split;
   try {
-    split = splitText('.content', { chars: true });
+    // Split both at word and char level. Words are plain inline spans;
+    // the browser's `text-wrap: balance` algorithm treats them like
+    // regular text words (break points at whitespace between word
+    // spans), which lands chars at the same positions plain text would
+    // occupy. Without `words: true`, chars-as-inline-block compute a
+    // different balance than plain text and produce a last-frame
+    // reflow snap when `revert()` restores the plain text at the end
+    // of the implosion.
+    split = splitText('.content', { chars: true, words: true });
   } catch (err) {
     console.error('splitText failed', err);
     chaosState = 'detonated';
