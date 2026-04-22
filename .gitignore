@@ -7,6 +7,11 @@
 # committed from a dev machine.
 dist/
 
+# Local secrets (GITHUB_TOKEN etc.) — never commit.
+.env
+.env.*
+!.env.example
+
 # Editor / OS noise
 .DS_Store
 Thumbs.db

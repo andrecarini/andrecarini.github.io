@@ -61,10 +61,12 @@ jobs:
             --outfile=dist/js/main.js
 
       - name: Minify CSS (esbuild)
+        # No --loader=css flag: esbuild's --loader= only applies to stdin,
+        # and errors out when reading a file. With a .css file path the
+        # loader is auto-detected from the extension, which is what we want.
         run: |
           npx --yes esbuild@0.24.2 css/styles.css \
             --minify \
-            --loader=css \
             --outfile=dist/css/styles.css
 
       - name: Minify HTML (html-minifier-terser)
@@ -81,10 +83,15 @@ jobs:
               "$page" -o "dist/$page"
           done
 
-      - name: Copy static assets and .nojekyll
+      - name: Copy static assets, .nojekyll, and CNAME
+        # CNAME is required at the published root for GitHub Pages to
+        # continue serving the site under the verified custom domain
+        # (acx.ci). Without it, a workflow-mode deploy would reset the
+        # domain on each publish.
         run: |
           cp -r assets/. dist/assets/
           cp .nojekyll dist/
+          cp CNAME dist/
 
       # Rasterize the SVG OG card to PNG. Facebook, LinkedIn, and X
       # commonly reject or ignore SVG og:images and fall back to no
