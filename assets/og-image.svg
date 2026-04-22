@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" aria-hidden="true">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#0c1428"/>
+      <stop offset="65%" stop-color="#050812"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#050812"/>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Decorative graph scatter around the edges, matching the live page. -->
+  <g stroke="rgba(140,170,220,0.18)" stroke-width="0.8" fill="none">
+    <line x1="120" y1="140" x2="240" y2="90"/>
+    <line x1="240" y1="90" x2="320" y2="190"/>
+    <line x1="120" y1="140" x2="180" y2="240"/>
+    <line x1="980" y1="120" x2="1080" y2="230"/>
+    <line x1="1080" y1="230" x2="1100" y2="360"/>
+    <line x1="150" y1="470" x2="260" y2="520"/>
+    <line x1="260" y1="520" x2="340" y2="450"/>
+    <line x1="900" y1="480" x2="1000" y2="540"/>
+    <line x1="1000" y1="540" x2="1080" y2="460"/>
+  </g>
+  <g fill="rgba(170,200,240,0.55)">
+    <circle cx="120" cy="140" r="3.2"/>
+    <circle cx="240" cy="90"  r="2.6"/>
+    <circle cx="320" cy="190" r="3"/>
+    <circle cx="180" cy="240" r="2.8"/>
+    <circle cx="980"  cy="120" r="3"/>
+    <circle cx="1080" cy="230" r="2.6"/>
+    <circle cx="1100" cy="360" r="3"/>
+    <circle cx="150"  cy="470" r="3"/>
+    <circle cx="260"  cy="520" r="2.6"/>
+    <circle cx="340"  cy="450" r="2.8"/>
+    <circle cx="900"  cy="480" r="2.8"/>
+    <circle cx="1000" cy="540" r="3"/>
+    <circle cx="1080" cy="460" r="2.6"/>
+  </g>
+
+  <!-- Title, tag, tagline. SVG doesn't support CSS text-transform, so
+       uppercase text is written pre-cased. -->
+  <text x="600" y="290"
+        text-anchor="middle"
+        fill="#5eead4"
+        font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif"
+        font-size="20"
+        letter-spacing="5"
+        font-weight="500">SOFTWARE ENGINEER</text>
+  <text x="600" y="370"
+        text-anchor="middle"
+        fill="#dce1ee"
+        font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif"
+        font-size="92"
+        font-weight="400"
+        letter-spacing="-2">André Carini</text>
+  <text x="600" y="430"
+        text-anchor="middle"
+        fill="rgba(220,225,238,0.64)"
+        font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif"
+        font-size="24">Web · Mobile · Cloud · AI · Security · Gothenburg</text>
+</svg>

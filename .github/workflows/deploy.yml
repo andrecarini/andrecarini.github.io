@@ -1,0 +1,122 @@
+# Deploy the homepage to GitHub Pages.
+#
+# All minification tooling runs here, on the Actions runner — never on
+# the author's machine (global CLAUDE.md rule against running dev tools
+# on the host). `npx --yes <pkg>@<ver>` pins exact versions without
+# requiring a committed lockfile.
+#
+# Pipeline:
+#   1. esbuild bundles + minifies js/main.js. CDN URL imports
+#      (animejs, tone) are preserved as external — esbuild leaves
+#      http/https specifiers alone in bundle mode.
+#   2. esbuild minifies css/styles.css as a standalone CSS file.
+#   3. html-minifier-terser collapses whitespace, strips comments,
+#      re-minifies the tiny inline FOUC script. Path references
+#      unchanged (dist/ mirrors the source layout).
+#   4. Static assets + .nojekyll copied through.
+#   5. Upload dist/ as the Pages artifact; deploy job publishes it.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only one concurrent deploy per ref. Queued runs wait rather than
+# cancel — Pages deploys are cheap, there's no reason to drop any.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare dist tree
+        run: mkdir -p dist/js dist/css dist/assets
+
+      - name: Minify JS (esbuild)
+        run: |
+          npx --yes esbuild@0.24.2 js/main.js \
+            --bundle \
+            --minify \
+            --format=esm \
+            --target=es2022 \
+            --legal-comments=none \
+            --sourcemap=linked \
+            --outfile=dist/js/main.js
+
+      - name: Minify CSS (esbuild)
+        run: |
+          npx --yes esbuild@0.24.2 css/styles.css \
+            --minify \
+            --loader=css \
+            --outfile=dist/css/styles.css
+
+      - name: Minify HTML (html-minifier-terser)
+        run: |
+          for page in index.html 404.html; do
+            npx --yes html-minifier-terser@7.2.0 \
+              --collapse-whitespace \
+              --conservative-collapse \
+              --remove-comments \
+              --minify-js true \
+              --minify-css true \
+              --sort-attributes \
+              --sort-class-name \
+              "$page" -o "dist/$page"
+          done
+
+      - name: Copy static assets and .nojekyll
+        run: |
+          cp -r assets/. dist/assets/
+          cp .nojekyll dist/
+
+      # Rasterize the SVG OG card to PNG. Facebook, LinkedIn, and X
+      # commonly reject or ignore SVG og:images and fall back to no
+      # preview. librsvg's rsvg-convert is fast, deterministic, and
+      # available as an apt package on Ubuntu runners. Source SVG is
+      # still shipped alongside for any consumer that prefers vector.
+      - name: Rasterize OG image (SVG -> PNG)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin
+          rsvg-convert --width=1200 --height=630 \
+            --output=dist/assets/og-image.png \
+            assets/og-image.svg
+          ls -la dist/assets/og-image.png
+
+      - name: Report dist sizes (for CI visibility)
+        run: |
+          echo "=== dist/ sizes ==="
+          find dist -type f -printf "%s\t%p\n" | sort -n
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

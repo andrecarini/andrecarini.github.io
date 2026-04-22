@@ -1,0 +1,15 @@
+# Local Claude Code state — planning docs and per-project settings
+# are for local iteration and don't belong in the public repo.
+.claude/
+.claude-plans/
+
+# Build output — generated in CI by .github/workflows/deploy.yml, never
+# committed from a dev machine.
+dist/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

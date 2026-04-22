@@ -1,0 +1,1350 @@
+/* ── Register color vars as proper <color> types so they can be
+      interpolated during transitions (including inside gradients). ──── */
+@property --bg         { syntax: '<color>'; inherits: true; initial-value: #050812; }
+@property --bg-2       { syntax: '<color>'; inherits: true; initial-value: #0c1428; }
+@property --fg         { syntax: '<color>'; inherits: true; initial-value: #dce1ee; }
+@property --fg-dim     { syntax: '<color>'; inherits: true; initial-value: rgba(220,225,238,0.64); }
+@property --edge       { syntax: '<color>'; inherits: true; initial-value: rgba(140,170,220,0.13); }
+@property --node       { syntax: '<color>'; inherits: true; initial-value: rgba(170,200,240,0.55); }
+@property --accent     { syntax: '<color>'; inherits: true; initial-value: #5eead4; }
+@property --accent-2   { syntax: '<color>'; inherits: true; initial-value: #c4b5fd; }
+@property --panel-bg   { syntax: '<color>'; inherits: true; initial-value: rgba(14,20,36,0.82); }
+
+/* ── Dark (default) ──────────────────────────────────────────────── */
+:root {
+  --bg:             #050812;
+  --bg-2:           #0c1428;
+  --fg:             #dce1ee;
+  --fg-dim:         rgba(220, 225, 238, 0.64);
+  --edge:           rgba(140, 170, 220, 0.13);
+  --node:           rgba(170, 200, 240, 0.55);
+  --accent:         #5eead4;
+  --accent-2:       #c4b5fd;
+
+  --btn-bg:         rgba(255, 255, 255, 0.04);
+  --btn-border:     rgba(255, 255, 255, 0.12);
+  --btn-hover-bg:   rgba(255, 255, 255, 0.08);
+  --panel-bg:       rgba(14, 20, 36, 0.82);
+  --panel-shadow:   0 24px 48px rgba(0, 0, 0, 0.45);
+  --slider-track:   rgba(255, 255, 255, 0.1);
+
+  /* Golden ratio, used by the content-block flex spacers so the block
+     sits at the ~38% hero line on tall viewports rather than dead-
+     center. Kept as a variable so the ratio is legible at the call
+     site and easy to retune if needed. */
+  --phi:       1.618;
+}
+
+/* ── Light ───────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg:             #f5f4ef;
+  --bg-2:           #edece4;
+  --fg:             #1a1d26;
+  --fg-dim:         rgba(26, 29, 38, 0.66);
+  --edge:           rgba(30, 55, 95, 0.15);
+  --node:           rgba(30, 55, 95, 0.55);
+  --accent:         #0d9488;
+  --accent-2:       #7c3aed;
+
+  --btn-bg:         rgba(0, 0, 0, 0.04);
+  --btn-border:     rgba(0, 0, 0, 0.12);
+  --btn-hover-bg:   rgba(0, 0, 0, 0.07);
+  --panel-bg:       rgba(255, 253, 247, 0.88);
+  --panel-shadow:   0 20px 40px rgba(30, 40, 70, 0.15);
+  --slider-track:   rgba(0, 0, 0, 0.1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background:
+    radial-gradient(1400px 900px at 50% 35%, var(--bg-2), var(--bg) 65%),
+    var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Theme swap — scoped so we don't interfere with anime.js tweens ── */
+body.theme-transitioning,
+body.theme-transitioning * {
+  transition:
+    --bg 450ms ease,
+    --bg-2 450ms ease,
+    --fg 450ms ease,
+    --fg-dim 450ms ease,
+    --edge 450ms ease,
+    --node 450ms ease,
+    --accent 450ms ease,
+    --accent-2 450ms ease,
+    --panel-bg 450ms ease,
+    background 450ms ease,
+    background-color 450ms ease,
+    color 450ms ease,
+    border-color 450ms ease,
+    stroke 450ms ease,
+    fill 450ms ease,
+    box-shadow 450ms ease !important;
+}
+
+/* ── SVG background ──────────────────────────────────────────────── */
+svg#field {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+  /* Promote to its own compositor layer so node/edge attribute updates
+     don't trigger reflow/repaint on the body tree. Uses `transform` +
+     `will-change` together — transform alone is the strongest hint, and
+     will-change primes the browser before the first composite. */
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+svg#field .edge {
+  stroke: var(--edge);
+  stroke-width: 0.8;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+svg#field .node {
+  fill: var(--node);
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: opacity, fill;
+}
+
+/* Superimposed per-pulse glow circle — static drop-shadow filter so the
+   GPU compositor can fade it via opacity without re-rasterising the blur.
+   Animating opacity on a pre-composited layer is cheap and perfectly smooth.
+   Two stacked drop-shadows give a softer, fuller bloom than one. */
+svg#field .node-glow {
+  fill: var(--accent);
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 10px var(--accent));
+}
+
+svg#field .glow {
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px var(--accent));
+  pointer-events: none;
+}
+
+/* Gradient-stroked pulse. Filter lives on the parent .pulses-fx group
+   (single offscreen buffer, single filter pass) instead of per pulse —
+   applying drop-shadow to 60 individual strokes per frame was the main
+   cause of stutter under click storms. */
+svg#field .pulses-fx {
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+svg#field .glow-pulse {
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Reconnects get a quieter treatment: neutral hue, no accent, no glow,
+   low opacity so the drawing motion barely registers. */
+svg#field .glow-soft {
+  stroke: var(--node);
+  stroke-width: 0.85;
+  stroke-linecap: round;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* Center-softening instead of corner-darkening: activity is muted
+     behind the text but fully visible toward the edges of the viewport. */
+  background: radial-gradient(
+    ellipse 760px 440px at 50% 32%,
+    var(--bg) 0%,
+    transparent 72%
+  );
+  transition: opacity 700ms ease-out;
+}
+/* Vignette fades out during chaos — no content to frame, and the
+   center brightening distracts from the explosion. */
+body.chaos-active .vignette {
+  opacity: 0;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────── */
+.toolbar {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+}
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 10px;
+  color: var(--fg);
+  cursor: pointer;
+  text-decoration: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  font: inherit;
+}
+.icon-btn:hover { background: var(--btn-hover-bg); border-color: var(--accent); color: var(--accent); }
+.icon-btn[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.icon-btn[data-active="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--btn-bg));
+}
+.icon-btn svg { width: 18px; height: 18px; stroke-width: 1.6; }
+
+/* ── Controls panel ──────────────────────────────────────────────── */
+/* font-family pinned explicitly to IBM Plex Sans so the panel matches
+   the rest of the page's type language (labels, pills, lede). Without
+   this it fell through to the body's system/Inter stack, which read
+   as a different design system. */
+.controls-panel {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  width: 300px;
+  padding: 16px 18px 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--panel-shadow);
+  font-family: 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  z-index: 19;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.controls-panel[data-open="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin: 0 0 14px;
+}
+
+.ctrl { margin-bottom: 13px; }
+.ctrl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.ctrl-label { font-size: 12px; color: var(--fg); opacity: 0.85; }
+.ctrl-value {
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  color: var(--fg-dim);
+  letter-spacing: 0.02em;
+}
+
+.ctrl input[type="range"] {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--slider-track);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+}
+.ctrl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: grab;
+  transition: transform 0.12s;
+  border: 0;
+}
+.ctrl input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.2); }
+.ctrl input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.3); }
+.ctrl input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  border: 0;
+  cursor: grab;
+}
+
+.panel-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--btn-border);
+}
+.panel-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--btn-border);
+  border-radius: 8px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-family: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.panel-btn:hover { border-color: var(--accent); color: var(--accent); }
+.panel-btn[data-active="true"] {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+}
+
+.panel-credit {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--btn-border);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--fg-dim);
+  text-align: center;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.panel-credit:hover { opacity: 1; }
+.panel-credit a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.panel-credit a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Content ─────────────────────────────────────────────────────── */
+/* Flex-column with pseudo-element spacers above and below the block,
+   sized 1:φ. Golden-ratio vertical positioning without having to hard-
+   code content height: the free space either side of the block splits
+   38.2% above / 61.8% below, so the block's top sits around the
+   classical "hero line" of the viewport rather than drifting toward
+   center. Short viewports collapse the spacers (flex shrinks them) and
+   the block simply sits below the toolbar. */
+.content {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+.content::before,
+.content::after {
+  content: '';
+  flex-shrink: 1;
+}
+.content::before {
+  flex-grow: 1;
+  min-height: clamp(72px, 9vh, 120px);  /* toolbar clearance floor */
+}
+.content::after {
+  flex-grow: var(--phi);
+}
+
+/* Masthead tag: small-cap mono with a hairline rule to its left, like
+   the category line on a magazine feature ("— SOFTWARE ENGINEER"). The
+   rule is a currentColor sliver so it tracks accent + theme changes. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  margin-bottom: 30px;
+  opacity: 0;
+  animation: rise 900ms cubic-bezier(.2,.7,.2,1) 200ms forwards;
+}
+/* The rule next to "Software engineer" is a real child element rather
+   than a ::before, so the chaos atomic pipeline can pick it up and
+   translate/rotate/scale it alongside the pills and contact buttons
+   during the pull → explode → implode cycle. A pseudo-element can't
+   be moved by JS transforms, which left the old ::before glitching
+   in place while everything else flew across the viewport. */
+.tag-rule {
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+/* Name set in Hanken Grotesk — a variable neo-grotesque with more
+   character than Inter but without the literary softness of a serif.
+   Weight 500 + tight negative tracking gives confident presence at
+   display sizes; text-wrap: balance handles narrow viewports cleanly. */
+h1 {
+  font-family: 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: clamp(52px, 9.5vw, 100px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 0.94;
+  margin: 0 0 24px;
+  color: var(--fg);
+  text-wrap: balance;
+  opacity: 0;
+  animation: rise 1100ms cubic-bezier(.2,.7,.2,1) 350ms forwards;
+}
+
+/* Lede in the same family at body weight — one-font simplicity rather
+   than a serif/sans pair. Italic gives each sentence a quiet authorial
+   tilt without the font-swap feeling dressed up. */
+.lede {
+  font-family: 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: -0.005em;
+  color: var(--fg-dim);
+  max-width: 540px;
+  margin: 0 0 10px;
+  text-wrap: balance;
+  opacity: 0;
+  animation: rise 1100ms cubic-bezier(.2,.7,.2,1) 650ms forwards;
+}
+.lede + .lede {
+  margin-bottom: 40px;
+  animation-delay: 750ms;
+}
+
+/* ── Meta row: location + skill tokens ────────────────────────────
+   Not chips — just mono small-caps separated by hairline vertical
+   rules. Reads as a spec sheet / publication colophon ("GOTHENBURG |
+   WEB | MOBILE | CLOUD | AI | SECURITY") rather than a pill soup.
+   The location leads and stays full-brightness; skill tokens are
+   dimmed and brighten on hover when revealing their keyword popup. */
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  margin: 0 0 36px;
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: rise 1000ms cubic-bezier(.2,.7,.2,1) 500ms forwards;
+}
+.meta-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--fg-dim);
+  background: none;
+  border: none;
+  border-radius: 0;
+  transition: color 0.25s ease;
+}
+.meta-pill svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2;
+  opacity: 0.8;
+}
+.meta-location {
+  color: var(--fg);
+}
+.meta-location svg { color: var(--accent); opacity: 1; }
+
+/* Hairline dividers between adjacent tokens, drawn by the ::before of
+   each pill that follows another. A single pixel at 30% accent keeps
+   the row quiet. */
+.meta-pill + .meta-pill::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 11px;
+  background: color-mix(in srgb, var(--fg-dim) 45%, transparent);
+}
+
+.meta-pill[data-keywords] { cursor: default; }
+.meta-pill[data-keywords]:hover { color: var(--fg); }
+
+/* Keyword reveal: hovers show the concrete technologies behind each
+   category in a mono data-pill below. Border-radius 2px keeps the
+   editorial sharpness; no gradient soft glow — just a clean hairline
+   border and a drop shadow that reads as "paper over paper". */
+.meta-pill[data-keywords]::after {
+  content: attr(data-keywords);
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-3px);
+  white-space: nowrap;
+  padding: 7px 12px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg-2) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--btn-border));
+  border-radius: 2px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  z-index: 9;
+}
+.meta-pill[data-keywords]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Contact row: colophon-style list, no chip chrome ──────────────
+   Each entry is icon + mono small-cap label (email shows the actual
+   address in mixed case — that's the exception). A hairline grows in
+   from left on hover to mark the affordance, the color shifts to
+   accent. Reads like the masthead contacts on a printed publication
+   rather than generic SaaS contact-chips. */
+.contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 30px;
+  margin: 0 0 50px;
+  opacity: 0;
+  animation: rise 1100ms cubic-bezier(.2,.7,.2,1) 800ms forwards;
+}
+.contact-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0 8px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--fg-dim);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  transition: color 0.25s ease;
+}
+/* Underline uses ::before — the email button also carries data-tooltip
+   which owns ::after for the shared tooltip pseudo-element. Keeping the
+   underline on its own pseudo-element stops the two rules from colliding
+   on the email button (they'd otherwise cross-pollute width/height/position
+   and render the tooltip as a 1px-tall sliver). */
+.contact-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: auto;
+  bottom: 0;
+  width: 0;
+  height: 1px;
+  background: currentColor;
+  transition: width 0.3s cubic-bezier(.2,.7,.2,1);
+}
+.contact-btn:hover,
+.contact-btn:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+.contact-btn:hover::before,
+.contact-btn:focus-visible::before {
+  width: 100%;
+}
+.contact-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+  opacity: 0.85;
+}
+.contact-btn .contact-label { white-space: nowrap; }
+.contact-btn .contact-label:empty { display: none; }
+
+/* Email button uppercases the address so it sits in the same
+   typographic register as the other labels (SIGNAL / LINKEDIN /
+   GITHUB). Wide tracking keeps the letters from colliding; the .at-sign
+   span gets additional margin so the @ doesn't bump into its neighbours
+   at small sizes. */
+#contact-email .contact-label {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 500;
+}
+/* No `display: inline-block` — an inline-block breaks contiguous text
+   selection across its boundaries in most browsers, which left the @
+   stranded when a user tried to drag-select the whole address as a
+   fallback to the click-to-copy flow. Plain inline keeps margins
+   horizontal-only (fine here) and lets selection flow through.
+   Browsers apply `user-select: none` to interactive descendants (see
+   the `.contact-row *` rule), so the at-sign needs an explicit carve-
+   out alongside `.contact-label` to actually be selectable. */
+#contact-email .at-sign {
+  margin: 0 0.32em;
+  opacity: 0.72;
+}
+
+/* ── Nav: shared shape used by both the real-link nav on 404.html and
+   the coming-soon placeholder on index.html. Real <a> links keep an
+   interactive underline treatment. `.soon-link` reads as a byline
+   waiting for its piece to be filed. */
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 32px;
+  font-family: 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--fg-dim);
+  opacity: 0;
+  animation: rise 1100ms cubic-bezier(.2,.7,.2,1) 950ms forwards;
+}
+nav a {
+  color: var(--fg);
+  text-decoration: none;
+  opacity: 0.8;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 3px;
+  transition: opacity .2s, border-color .2s, color .2s;
+}
+nav a:hover { opacity: 1; border-color: var(--accent); color: var(--accent); }
+
+.soon-link {
+  opacity: 0.72;
+  cursor: default;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+}
+/* The "forthcoming" suffix is the only mono element — a tiny category
+   stamp rather than prose. Non-italic so it doesn't melt into the
+   Fraunces italic of the section title. */
+.soon-link small {
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  opacity: 0.55;
+  border-top: 1px solid color-mix(in srgb, var(--fg-dim) 30%, transparent);
+  padding-top: 3px;
+}
+
+/* ── Toast: transient feedback (e.g. "Email copied") ───────────────
+   Bottom-center, pointer-events-none so it never blocks clicks. Shows
+   for ~1.8s then fades. Single element reused — contact.js sets the
+   text and toggles a [data-visible] attribute. */
+.toast {
+  position: fixed;
+  bottom: clamp(24px, 6vh, 60px);
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  max-width: min(460px, calc(100vw - 40px));
+  padding: 11px 24px;
+  background: color-mix(in srgb, var(--bg-2) 92%, transparent);
+  color: var(--fg);
+  border: none;
+  border-top:    1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-radius: 0;
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  text-wrap: balance;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  z-index: 14;
+}
+/* Border-glow: 1px pseudo-elements sitting exactly on top of the
+   border lines, each with a two-layer radial box-shadow halo. The
+   border stays the visible bright line; the pseudo emits the glow
+   around it in every direction (out-up, out-down, past left/right
+   edges, into the toast interior). `mix-blend-mode: screen` means
+   the halo only brightens pixels underneath — it never occludes the
+   toast text even though the pseudo is painted above content. */
+.toast::before,
+.toast::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  box-shadow:
+    0 0 20px 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 8px  0   color-mix(in srgb, var(--accent) 70%, transparent);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+.toast::before { top: 0; }
+.toast::after  { bottom: 0; }
+.toast[data-visible="true"] {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast[data-visible="true"]::before,
+.toast[data-visible="true"]::after {
+  opacity: 1;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Once initial animations have run, lock them off so DOM mutations
+   (e.g. chaos mode's splitText.revert) can't re-trigger them. */
+body.loaded .tag,
+body.loaded h1,
+body.loaded .meta-row,
+body.loaded .lede,
+body.loaded .contact-row,
+body.loaded nav,
+body.loaded nav.soon {
+  animation: none;
+  opacity: 1;
+}
+
+/* Text selection: allow only on actual prose — h1, the tag/subtitle,
+   and the lede paragraphs. Pills, buttons, tooltips, toolbar chrome,
+   and placeholders are decorative / interactive, so selecting their
+   text adds no value and just gets in the way when the user tries to
+   highlight real content. */
+.toolbar, .toolbar *,
+.controls-panel, .controls-panel *,
+.meta-row, .meta-row *,
+.contact-row, .contact-row *,
+nav.soon, nav.soon *,
+.music-cta, .music-cta *,
+.chaos-toast, .toast,
+svg#field, .vignette {
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Exception: the email button's label is the actual address. Keep it
+   selectable so a user can manually highlight + copy if the clipboard
+   API or the click-to-copy handler ever fails (Firefox permission
+   prompts, iOS quirks, etc.). Extend the exception to descendants
+   (.at-sign span) so the @ doesn't get stranded outside the selection
+   — without this `.contact-row *` wins and disables selection on the
+   @ alone. */
+#contact-email .contact-label,
+#contact-email .contact-label * {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* Chaos mode pins the viewport so translated chars don't create scroll. */
+body.chaos-active { overflow: hidden; }
+
+/* Disable all interaction on page content during any chaos state —
+   text selection, link clicks, hover states. Clicks still reach the
+   window-level detonation handler. Toolbar stays interactive (outside
+   .content). */
+body.chaos-active .content,
+body.chaos-active .content * {
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Perspective on body so rotateX/rotateY on chars during explosion
+   render with 3D foreshortening. Only takes effect when chars actually
+   have 3D transforms applied — at rest the page is 2D as normal. */
+body {
+  perspective: 1400px;
+}
+
+/* ── Chaos mode UI ───────────────────────────────────────────────── */
+/* Ambient-music CTA: a wide pill at top-center that appears as soon as
+   Fun Mode starts and stays visible through all its states. Replaced
+   the tiny toolbar icon because visitors missed it entirely. Sits above
+   the chaos hint toast in z-order; the toast is pushed down so both
+   coexist during `awaiting`. */
+/* Shared visual language for top-anchored "signal band" elements
+   (music CTA + chaos hint toast) and the bottom feedback toast. No
+   pill, no rounded corners, no left/right borders — just a pair of
+   accent hairlines and a soft vertical glow above and below. Reads as
+   a radio-band / signal-strip instead of a floating chip. */
+.music-cta {
+  position: fixed;
+  top: clamp(24px, 6vh, 60px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 26px;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  color: var(--fg);
+  border: none;
+  border-top:    1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-radius: 0;
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out,
+              padding 0.25s ease, font-size 0.25s ease,
+              color 0.2s, background 0.2s, border-color 0.2s;
+  z-index: 12;   /* above .chaos-toast (z-index 10) */
+}
+/* Border-glow: see `.toast::before/::after` for the design rationale.
+   1px pseudo-elements sitting on the border lines; two-layer radial
+   halo; mix-blend-mode: screen so the halo only brightens underlying
+   pixels instead of occluding the label/icon. */
+.music-cta::before,
+.music-cta::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  box-shadow:
+    0 0 22px 1px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 0 10px 0   color-mix(in srgb, var(--accent) 75%, transparent);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.music-cta::before { top: 0; }
+.music-cta::after  { bottom: 0; }
+.music-cta[data-visible="true"] {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.music-cta[data-visible="true"][data-muted="true"]::before,
+.music-cta[data-visible="true"][data-muted="true"]::after {
+  opacity: 1;
+}
+/* Muted — keep the full-bright accent band to catch the eye. */
+.music-cta[data-muted="true"]:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-2));
+}
+/* Unmuted — shrink the whole band down and dim the hairlines so the
+   active state is not constantly tugging at the viewer. Returns to
+   prominence on hover. */
+.music-cta[data-muted="false"] {
+  padding: 7px 16px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  gap: 8px;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--bg-2) 92%, transparent);
+  border-top-color:    var(--btn-border);
+  border-bottom-color: var(--btn-border);
+  opacity: 0.55;
+}
+/* Unmuted suppresses the glow bands entirely; hover brings them back
+   at full strength as part of the "return to prominence" treatment. */
+.music-cta[data-muted="false"]::before,
+.music-cta[data-muted="false"]::after {
+  opacity: 0;
+}
+.music-cta[data-muted="false"]:hover::before,
+.music-cta[data-muted="false"]:hover::after {
+  opacity: 1;
+}
+.music-cta[data-muted="false"][data-visible="true"] {
+  opacity: 0.55;
+}
+.music-cta[data-muted="false"]:hover {
+  opacity: 1;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-2));
+  border-top-color:    var(--accent);
+  border-bottom-color: var(--accent);
+}
+.music-cta[data-muted="false"] svg { width: 13px; height: 13px; }
+.music-cta svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.7;
+}
+/* Attention pulse while muted — breathes the glow-band opacity on the
+   pseudo-elements rather than the old box-shadow (which no longer
+   exists because the glow is now shaped by directional pseudo-elements
+   that can't bleed sideways). Stops the moment they unmute. */
+@keyframes music-cta-attention {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1;    }
+}
+.music-cta[data-visible="true"][data-muted="true"]::before,
+.music-cta[data-visible="true"][data-muted="true"]::after {
+  animation: music-cta-attention 2.6s ease-in-out infinite;
+}
+
+/* Fun-Mode hint toast: top-center "signal band" that prompts the user
+   to press-and-hold anywhere. Same borderless-top/bottom language as
+   the music CTA so the two feel like one system. pointer-events: none
+   so clicks pass through to the window detonation handler. */
+.chaos-toast {
+  position: fixed;
+  top: clamp(24px, 6vh, 60px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-12px);
+  max-width: min(560px, calc(100vw - 40px));
+  padding: 14px 28px;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  color: var(--fg);
+  border: none;
+  border-top:    1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  border-radius: 0;
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  text-wrap: balance;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  z-index: 10;
+}
+/* Border-glow: see `.toast::before/::after` for the design rationale.
+   Slightly brighter and wider than the feedback toast — this one
+   demands attention while the user considers press-and-hold. */
+.chaos-toast::before,
+.chaos-toast::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  box-shadow:
+    0 0 24px 1px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 10px 0   color-mix(in srgb, var(--accent) 80%, transparent);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.chaos-toast::before { top: 0; }
+.chaos-toast::after  { bottom: 0; }
+.chaos-toast[data-visible="true"] {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* Two-line layout: press instruction on line 1, payoff on line 2. Each
+   span becomes its own block so `text-wrap: balance` on the container
+   applies independently per line. Small gap keeps them visually related
+   but distinct. */
+.chaos-toast-line {
+  display: block;
+}
+.chaos-toast-line + .chaos-toast-line {
+  margin-top: 4px;
+}
+/* Subtle pulse to draw the eye while the toast is visible. Animation
+   targets the pseudo-elements directly rather than the toast's box-
+   shadow (which no longer exists) — so the breathing reads as glow
+   intensity, still sharply bounded to top/bottom only. */
+@keyframes chaos-toast-glow-pulse {
+  0%, 100% { opacity: 0.8; }
+  50%      { opacity: 1; }
+}
+.chaos-toast[data-visible="true"]::before,
+.chaos-toast[data-visible="true"]::after {
+  animation: chaos-toast-glow-pulse 2.4s ease-in-out infinite;
+}
+
+/* ── Chaos flash: multi-layer explosion at click point ──────────── */
+/* All four layers are fixed-positioned at (click_x, click_y) with
+   negative margin centering. Each uses mix-blend-mode: screen to
+   brighten rather than cover. */
+.chaos-flash-halo,
+.chaos-flash-core,
+.chaos-flash-beams,
+.chaos-flash-ring {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* Halo: wide soft accent-colored glow. */
+.chaos-flash-halo {
+  width: 400px;
+  height: 400px;
+  margin: -200px 0 0 -200px;
+  background: radial-gradient(circle,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 55%, transparent) 35%,
+    transparent 70%);
+  z-index: 6;
+  transform: scale(0.3);
+}
+
+/* Core: intense white-hot centre, fades to accent. Smaller and brighter. */
+.chaos-flash-core {
+  width: 160px;
+  height: 160px;
+  margin: -80px 0 0 -80px;
+  background: radial-gradient(circle,
+    white 0%,
+    white 20%,
+    color-mix(in srgb, var(--accent) 70%, white) 45%,
+    transparent 75%);
+  z-index: 8;
+  transform: scale(0.1);
+}
+
+/* Beams: conic gradient produces 8 thin radial spokes. Mask fades
+   them at the outer edge so they don't terminate in a hard circle. */
+.chaos-flash-beams {
+  width: 500px;
+  height: 500px;
+  margin: -250px 0 0 -250px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg, white 0deg 1.3deg, transparent 1.3deg 43.7deg,
+    white 43.7deg 46.3deg, transparent 46.3deg 88.7deg,
+    white 88.7deg 91.3deg, transparent 91.3deg 133.7deg,
+    white 133.7deg 136.3deg, transparent 136.3deg 178.7deg,
+    white 178.7deg 181.3deg, transparent 181.3deg 223.7deg,
+    white 223.7deg 226.3deg, transparent 226.3deg 268.7deg,
+    white 268.7deg 271.3deg, transparent 271.3deg 313.7deg,
+    white 313.7deg 316.3deg, transparent 316.3deg 358.7deg,
+    white 358.7deg 360deg
+  );
+  -webkit-mask-image: radial-gradient(circle, black 10%, black 30%, transparent 75%);
+          mask-image: radial-gradient(circle, black 10%, black 30%, transparent 75%);
+  z-index: 7;
+  transform: scale(0.2);
+}
+
+/* Shock ring: thin expanding circle. Base size kept large (300px)
+   so the border/box-shadow rasterize at near-native resolution — a
+   60px base scaled to 5.5× produced a visibly soft, fuzzy edge from
+   bilinear upsampling. Border and shadow scaled proportionally so
+   the perceived ring thickness matches the old design at all scales. */
+.chaos-flash-ring {
+  width: 300px;
+  height: 300px;
+  margin: -150px 0 0 -150px;
+  border: 10px solid var(--accent);
+  box-shadow: 0 0 100px color-mix(in srgb, var(--accent) 60%, transparent);
+  z-index: 5;
+  transform: scale(0.2);
+}
+
+/* Gravity distortion lens: small circular backdrop-filter at click
+   point that grows during the gravity phase. Creates a visible
+   "gravity well" warp of content behind it. Capped at moderate scale
+   so the backdrop-filter cost stays bounded. */
+.chaos-gravity-lens {
+  position: fixed;
+  /* Base size kept large (120px) rather than 24px — CSS transform
+     scaling upsamples the backdrop-filter output, which produces a
+     visibly pixelated edge at high scales. Rendering at near-1x scale
+     means the edge stays crisp. Net max visual size is controlled by
+     the JS scale factor (max ~1.4x in pullTick). */
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  backdrop-filter: blur(8px) saturate(1.35) brightness(0.92);
+  -webkit-backdrop-filter: blur(8px) saturate(1.35) brightness(0.92);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--accent) 30%, transparent),
+              inset 0 0 24px color-mix(in srgb, var(--accent) 20%, transparent);
+  pointer-events: none;
+  z-index: 4;
+  transform: scale(0.2);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* Full-screen flash at the moment of detonation. mix-blend-mode: screen
+   brightens rather than covers — reads as an overexposure of the scene
+   rather than a solid overlay. */
+.chaos-screen-flash {
+  position: fixed;
+  inset: 0;
+  background: var(--accent);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 7;
+  opacity: 0;
+  will-change: opacity;
+}
+
+/* Per-char glitch: discrete frame jumps via steps(1) ease. Uses
+   hue-rotate + blur + multi-direction text-shadow offsets for a
+   corrupted-signal / data-loss aesthetic. Each char gets a random
+   animation-delay (set inline) so they desync — the group reads as
+   wet, live corruption rather than a uniform pulse. Applied from the
+   start of gravity through the end of explosion, plus during the
+   implosion restore. `transform` is deliberately NOT animated here:
+   pullTick writes inline transforms every frame for the orbital
+   motion + per-char jitter, and a keyframe transform would clobber
+   them. Distortion is delivered via filter + text-shadow only. */
+@keyframes chaos-char-glitch {
+  0%, 100% {
+    filter: blur(0.4px) brightness(1.05);
+    text-shadow: 0.5px 0 color-mix(in srgb, var(--accent) 35%, transparent),
+                 -0.5px 0 color-mix(in srgb, var(--accent-2) 35%, transparent);
+  }
+  8% {
+    filter: blur(0.3px) hue-rotate(80deg) brightness(1.35) saturate(1.45);
+    text-shadow: 3px 0 color-mix(in srgb, var(--accent-2) 75%, transparent),
+                 -3px 0 color-mix(in srgb, var(--accent) 75%, transparent),
+                 0 2px color-mix(in srgb, var(--accent-2) 55%, transparent);
+  }
+  17% {
+    filter: blur(1.4px) brightness(1.2) contrast(1.1);
+    text-shadow: -1px 1px color-mix(in srgb, var(--accent) 70%, transparent),
+                 1px -1px color-mix(in srgb, var(--accent-2) 55%, transparent);
+  }
+  26% {
+    filter: blur(0.5px) hue-rotate(-110deg) saturate(1.7) contrast(1.35);
+    text-shadow: 4.5px 0 color-mix(in srgb, var(--accent-2) 70%, transparent),
+                 -4.5px 0 color-mix(in srgb, var(--accent) 70%, transparent),
+                 0 -2.5px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  37% {
+    filter: blur(1.1px) contrast(1.55) brightness(0.82);
+    text-shadow: 1.5px -1.5px color-mix(in srgb, var(--accent-2) 60%, transparent);
+  }
+  51% {
+    filter: blur(1.8px) hue-rotate(155deg);
+    text-shadow: 3.5px 0 color-mix(in srgb, var(--accent-2) 65%, transparent),
+                 -3.5px 0 color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+  63% {
+    filter: blur(0.6px) brightness(1.5) saturate(1.7);
+    text-shadow: 0 3.5px color-mix(in srgb, var(--accent-2) 60%, transparent),
+                 0 -3.5px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  74% {
+    filter: blur(1.5px) hue-rotate(60deg) contrast(1.35);
+    text-shadow: -5px 0 color-mix(in srgb, var(--accent-2) 65%, transparent),
+                 5px 0 color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+  86% {
+    filter: blur(0.9px) brightness(0.85) saturate(1.3);
+    text-shadow: 2px 2px color-mix(in srgb, var(--accent) 55%, transparent),
+                 -2px -2px color-mix(in srgb, var(--accent-2) 55%, transparent);
+  }
+}
+.chaos-char-glitch {
+  display: inline-block;
+  /* Faster cycle — 520ms vs the old 780ms — makes the corruption feel
+     more unstable / alive. steps(1) keeps it chunky instead of smooth. */
+  animation: chaos-char-glitch 520ms steps(1) infinite;
+  will-change: filter, text-shadow, transform;
+}
+
+/* Container-level signal distortion during the gravity phase — baseline
+   blur + stronger hue/contrast jumps so the whole block reads as
+   unstable even between char-level glitch frames. */
+@keyframes chaos-content-corrupt {
+  0%   { filter: blur(0.3px); }
+  20%  { filter: blur(0.5px) hue-rotate(14deg) contrast(1.12); }
+  42%  { filter: blur(0.4px) brightness(1.08) saturate(1.18); }
+  63%  { filter: blur(0.6px) hue-rotate(-12deg) contrast(1.18); }
+  82%  { filter: blur(0.4px) brightness(0.94) saturate(1.1); }
+  100% { filter: blur(0.3px); }
+}
+.chaos-content-corrupt {
+  animation: chaos-content-corrupt 210ms steps(1) infinite;
+}
+
+/* Motion-off: skip the entrance animations too. */
+:root[data-motion="off"] .tag,
+:root[data-motion="off"] h1,
+:root[data-motion="off"] .meta-row,
+:root[data-motion="off"] .lede,
+:root[data-motion="off"] .contact-row,
+:root[data-motion="off"] nav,
+:root[data-motion="off"] nav.soon {
+  animation: none;
+  opacity: 1;
+}
+
+/* ── Motion toggle block inside controls panel ──────────────────── */
+.ctrl-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -2px 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--btn-border);
+}
+.toggle-btn {
+  padding: 5px 14px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.toggle-btn[data-on="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.toggle-btn:hover { background: var(--btn-hover-bg); }
+
+/* Shared tooltip — one style for the whole site. Visually identical to
+   the meta-pill keyword reveals so every hover-to-reveal micro-label
+   reads as the same editorial data-slip: IBM Plex Mono, sharp 2px
+   radius, accent-tinted hairline border, drop shadow that lands like
+   paper-over-paper. Font-family / text-transform / letter-spacing are
+   set explicitly so the tooltip doesn't inherit uppercase + wide
+   tracking from buttons that have their own typographic treatment
+   (.contact-btn is the concrete case that used to drag the tooltip
+   into caps). */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:empty::after,
+[data-tooltip=""]::after {
+  display: none;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-3px);
+  white-space: nowrap;
+  padding: 7px 12px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 400;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--bg-2) 95%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--btn-border));
+  border-radius: 2px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  z-index: 20;
+}
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* Toolbar icon buttons sit hard against the top-right edge — a
+   centered-below tooltip on the rightmost button would clip past the
+   viewport. Right-anchor them instead, preserving the rise-in motion. */
+.toolbar [data-tooltip]::after {
+  left: auto;
+  right: 0;
+  transform: translateX(0) translateY(-3px);
+}
+.toolbar [data-tooltip]:hover::after,
+.toolbar [data-tooltip]:focus-visible::after {
+  transform: translateX(0) translateY(0);
+}
+
+@media (max-width: 480px) {
+  .controls-panel { width: calc(100vw - 40px); right: 20px; }
+}
+
+/* Narrow viewports: the toolbar at top-right is wide enough that a
+   centered top-position toast/CTA collides with it. Push the two
+   top-anchored elements below the toolbar (20px top + 38px height +
+   16px breathing room = 74px) so they always sit clear of the icon
+   buttons regardless of how narrow the viewport gets. */
+@media (max-width: 640px) {
+  .chaos-toast,
+  .music-cta {
+    top: 74px;
+  }
+}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 — André Carini</title>
+<meta name="description" content="Page not found.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#050812" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f4ef" media="(prefers-color-scheme: light)">
+<meta name="robots" content="noindex">
+<link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+
+<!-- FOUC-free theme + motion init — identical to index.html. Inline so
+     it runs before first paint. -->
+<script>
+(function () {
+  var t;
+  try { t = localStorage.getItem('portfolio-bg-theme'); } catch (e) {}
+  if (t !== 'light' && t !== 'dark') {
+    try {
+      t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    } catch (e) { t = 'dark'; }
+  }
+  document.documentElement.dataset.theme = t;
+
+  var m;
+  try { m = localStorage.getItem('portfolio-bg-motion'); } catch (e) {}
+  if (m !== 'on' && m !== 'off') {
+    try {
+      m = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : 'on';
+    } catch (e) { m = 'on'; }
+  }
+  document.documentElement.dataset.motion = m;
+})();
+</script>
+
+<link rel="stylesheet" href="./css/styles.css">
+<link rel="modulepreload" href="./js/main.js">
+</head>
+<body>
+
+<!-- Toolbar + controls panel + chaos toast + field + vignette all reused
+     so the 404 page has the same aesthetic and the same JS can boot
+     against the same DOM shape without any branching. -->
+<div class="toolbar">
+  <a class="icon-btn" id="github-btn" href="/" aria-label="Back home" data-tooltip="Back home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 12 12 3l9 9"/>
+      <path d="M5 10v10h4v-6h6v6h4V10"/>
+    </svg>
+  </a>
+  <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" data-tooltip="Toggle theme"></button>
+  <button class="icon-btn" id="controls-btn" aria-label="Open controls" aria-expanded="false" aria-controls="controls-panel" data-tooltip="Background controls">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="21" y1="4" x2="14" y2="4"/>
+      <line x1="10" y1="4" x2="3" y2="4"/>
+      <line x1="21" y1="12" x2="12" y2="12"/>
+      <line x1="8" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="20" x2="16" y2="20"/>
+      <line x1="12" y1="20" x2="3" y2="20"/>
+      <circle cx="12" cy="4" r="2"/>
+      <circle cx="10" cy="12" r="2"/>
+      <circle cx="14" cy="20" r="2"/>
+    </svg>
+  </button>
+  <button class="icon-btn" id="chaos-btn" aria-label="Fun mode" data-active="false" data-tooltip="Fun mode">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+      <path d="M5 3v4"/>
+      <path d="M19 17v4"/>
+      <path d="M3 5h4"/>
+      <path d="M17 19h4"/>
+    </svg>
+  </button>
+</div>
+
+<div class="controls-panel" id="controls-panel" role="dialog" aria-label="Background controls">
+  <div class="panel-title">Background controls</div>
+  <div id="ctrl-list"></div>
+  <div class="panel-footer">
+    <button class="panel-btn" id="reset-btn">Reset</button>
+  </div>
+  <div class="panel-credit">animations by <a href="https://animejs.com" target="_blank" rel="noopener noreferrer">anime.js</a> · icons by <a href="https://lucide.dev" target="_blank" rel="noopener noreferrer">Lucide</a></div>
+</div>
+
+<div class="chaos-toast" id="chaos-toast" data-visible="false" aria-live="polite"></div>
+
+<svg id="field" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <g class="edges"></g>
+  <g class="nodes"></g>
+  <g class="pulses">
+    <g class="pulses-fx"></g>
+  </g>
+</svg>
+<div class="vignette" aria-hidden="true"></div>
+
+<main class="content">
+  <div class="tag">404 — lost signal</div>
+  <h1>Not here.</h1>
+  <p class="lede">Whatever you were looking for isn't at this address. The graph is still humming, but the page you asked for never arrived.</p>
+  <nav>
+    <a href="/">Home</a>
+  </nav>
+</main>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
