@@ -817,6 +817,25 @@ body.chaos-active {
   touch-action: none;
 }
 
+/* Suspend `text-wrap: balance` on the headline and ledes for the
+   duration of chaos. The balance algorithm computes line breaks
+   differently for plain text versus for a stream of inline-block char
+   spans (which is what anime.js's splitText produces). With balance
+   active, the chars animate back to the split-text's balanced
+   positions; then `splitText.revert()` restores plain text and the
+   browser recomputes balance on that plain text, landing at slightly
+   different line-break positions — visible as a last-frame snap just
+   as the implosion settles. Forcing plain `wrap` keeps both the split
+   and reverted layouts on the same greedy rules, so char animations
+   and the revert land on matching positions. Balance reapplies on the
+   next render once `.chaos-active` is removed; on 1-line viewports
+   this is a no-op, and on wrapped viewports the reflow is tiny and
+   happens after motion has settled. */
+body.chaos-active h1,
+body.chaos-active .lede {
+  text-wrap: wrap;
+}
+
 /* Disable all interaction on page content during any chaos state —
    text selection, link clicks, hover states. Clicks still reach the
    window-level detonation handler. Toolbar stays interactive (outside
